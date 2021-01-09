@@ -1,4 +1,8 @@
-5%% step 1.plot the data
+% this script provide common processing for LFP data
+% Called hand-made functions: touv, segdata,shuffleFunc, bootstrappingFunc,
+% trialAveSpectrum, spectrogramFunc,cohrFunc
+
+%% step 1.plot the data
 % read data- edf
 [head, dset] = edfread('20201103_GL8211_TST_dHCL1_S1R2_APCR3_APCL4.edf');
 dset_1 = touv(dset(3,:)); % APCR %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -9,7 +13,7 @@ dset_5 = dset(5,:);
 dset = [dset_1;dset_2;dset_3;dset_4;dset_5];
 % define sampling parameters
 Fs = 1000; %%%%%%%%%%%%%%%%%%%%%%
-gain = 1; %%%%%%%%%%%%%%%%%%%%%%%
+% gain = 1; %%%%%%%%%%%%%%%%%%%%%%%
 dt = 1/Fs; %%%%%%%%%%%%%%%%%%%%%%
 t = (dt:dt:(size(dset_1,2))*dt);
 
@@ -40,7 +44,7 @@ plot(t,dset_5)
 xlabel('Time [s]')
 
 linkaxes([ax1,ax2,ax3,ax4,ax5],'x')
-ax1.XLim = [0 400]; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ax1.XLim = [0 30]; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 linkaxes([ax1,ax2,ax3,ax4],'y')
 ax1.YLim = [-300 300];  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -160,15 +164,6 @@ for m = 1:10
     um2m(m,:) = segdata(x,t0_um2m(m),Fs,10);
 end
 
-% prepare shuffled x (x can be any stage, here m2um or um2m)
-x = um2m; 
-ns = 1;                   %define number of shuffle for each trial as 1, so we can generate a dataframe the same as original data
-xs = zeros(ns*size(x,1),size(x,2));			%Vector to hold shuffled x results
-for m = 1:size(x,1)
-    for n = 1:ns				%For each surrogate,
-        xs(n+ns*(m-1),:) = x(m,randperm(size(x,2)));	%Resample by y-index
-    end
-end
 
 um_off = um2m(:, 1:0.5*size(um2m,2)); % prepare data of 5s for spectrum
 m_on = um2m(:, 0.5*size(um2m,2)+1:end);
@@ -178,113 +173,171 @@ move = [m_on;m_off];
 unmove = [um_on;um_off];
 
 %% segment the data automatically
-x = dset_5-mean(dset_5);
-x4bs = segdata(x,200,1000,12);
-bs = calbs(x4bs);
-[pks,locs] = findpeaks(x,'MinPeakProminence',2*bs);
-% figure;
-% plot(t,x)
-% hold on
-% plot(locs/Fs,pks,'o')
-difflocs = diff(locs);
-% figure;
-% plot(difflocs)
-% Condition 1) choose the unmove time larger than 2s
-% Condition 2) choose the move time larger than 2s
-locs_um = zeros(100,2);
-locs_m = zeros(100,2);
-n = 1;
-for m = 1:length(difflocs)
-    if difflocs(m) > 2000 && difflocs(m+1) < 2000 % unmove on
-        locs_um(n,1) = locs(m); % diff(m) = locs(m+1)-locs(m),so locs(m) is locs_um_on
-        locs_um(n,2) = locs(m+1); % as the former, locs(m+1) is the um_off
-        locs_m(n,1) = locs_um(n-1,2);
-        n = n+1;
-    end
-end
-locs_um_on = nonzeros(locs_um_on)';
-for m = 1:(length(locs_um_on)-1)
-    if locs_um_on(m+1) - locs_um_on(m) < 1000
-        locs_um_on(m+1) = [];
-    end
-end
+x = dset_5-mean(dset_5);        %Define the movement channel.
+Fs = 1000;                      %Define sampling frequency.
+dt = 1/Fs;                      %Define time interval for sampling.
+t = (dt:dt:(size(x,2))*dt);     %Define time variable. 
 
-    
+x4bs = segdata(x,202,1000,10);  %Define data segment for baseline calculation by eye.
+bs = calbs(x4bs);               %Calculate basiline- p2p difference.
+[pks_m,locs_m] = findpeaks(x,t,'MinPeakProminence',3*bs);   %Define movement threshold, 3*bs.
 
-% 
-% locs_m_on = zeros(1,100);
-% 
-% for m = 1: (length(locs)-1)
-%     if locs(m+1) - locs(m) > 2000
-%         locs_m_on(m) = locs(m+1);
-%     end
-% end
-% locs_m_on = nonzeros(locs_m_on);
-% 
-% for m = 1:length(locs_m_on)
-%      
-%     locs(m+1)-locs(m)
 figure;
-plot(t,x,locs_m_on/Fs,x(locs_m_on),'o')
+plot(t,x)                   %...plot movement.
+hold on
+plot(locs_m,pks_m,'o')      %...plot the found move peaks
+xlabel('time [s]')
+hold off
+
+% detect the unmove time(> 1s)
+difflocs_m = diff(locs_m);  %...calculate time interval of the move point.
+figure;
+plot(difflocs_m)
+xlabel('detected moving time interval[s]')
+ylabel('[s]')
+
+thr = 1;    %Define a threshold for the unmove duration.
+[pks,locs] = findpeaks(difflocs_m,'MinPeakHeight',thr); 
+hold on
+plot(locs,pks,'o')
+t0um = locs_m(locs);    %start time loc of um.
+t0m = locs_m(locs+1);   %start time loc of m.
+t0m = [0 t0m];          %add 0 to starting point of m.
+t0mm = t0m(1:(length(t0m)-1)); %Define t0m as m-um loop. so rm the last one.
+t0mu = t0m(2:end);             %Define t0m as um-m loop.
+
+figure;
+plot(t,x)
+hold on
+for n = 1:length(t0m)
+    plot([t0m(n) t0m(n)],[-200 200],'r');
+    hold on
+end
+
+for n = 1:length(t0um)
+    plot([t0um(n) t0um(n)],[-200 200],'k');
+    hold on
+end
+
+%% prepare data: move epoch
+t0mm = t0m(1:(length(t0m)-1)); %Define t0m as m-um loop. so rm the last one.
+t0mu = t0m(2:end);             %Define t0m as um-m loop.
+mdur = t0um-t0mm;              % calculate the duration of every movement. 
+mdur = floor(mdur);            % round the mdur to integers.
+ind = find(mdur==0);           % find the index of mdur is 0, which is too short and won't be selected in the later analysis.
+t0mm(ind) = [];             % remain t0mm that dur >=1.
+t0mmu = t0um;               % prepare a new t0um;
+t0mmu(ind)=[];              % remain coresponding t0um for t0mm
+mdur = mdur(mdur>0);    % remain the mdur >=1.
+
+figure;plot(t,x)    % ...plot and eye checking time for move start.
+hold on
+for n = 1:length(t0mm)
+    plot([t0mm(n) t0mm(n)],[-200 200],'r');
+    hold on
+end
+for n = 1:length(t0mmu)
+    plot([t0mmu(n) t0mmu(n)],[-200 200],'k');
+    hold on
+end
+hold off
+
+moveEpoch =  data4epoch(x,t0mm,1000,mdur,1);    
+moveEpoch1 = data4epoch(dset_1,t0mm,1000,mdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+moveEpoch2 = data4epoch(dset_2,t0mm,1000,mdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+moveEpoch3 = data4epoch(dset_3,t0mm,1000,mdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+moveEpoch4 = data4epoch(dset_4,t0mm,1000,mdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
 
 
+%% prepare data: unmove epoch
+umdur = t0mu-t0um;              % calculate the duration of every movement. 
+umdur = floor(umdur);            % round the mdur to integers.
+
+figure;plot(t,x)    % ...plot and eye checking time for move start.
+hold on
+for n = 1:length(t0um)
+    plot([t0um(n) t0um(n)],[-200 200],'k');
+    hold on
+end
+for n = 1:length(t0mu)
+    plot([t0mu(n) t0mu(n)],[-200 200],'r');
+    hold on
+end
+hold off
+
+unmoveEpoch =  data4epoch(x,t0um,1000,umdur,1);
+unmoveEpoch1 = data4epoch(dset_1,t0um,1000,umdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+unmoveEpoch2 = data4epoch(dset_2,t0um,1000,umdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+unmoveEpoch3 = data4epoch(dset_3,t0um,1000,umdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+unmoveEpoch4 = data4epoch(dset_4,t0um,1000,umdur,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+
+%% prepare data ( >5s um2m)
+t0mm = t0m(1:(length(t0m)-1)); %Define t0m as m-um loop. so rm the last one.
+t0mu = t0m(2:end);             %Define t0m as um-m loop.
+mdur = t0um-t0mm;              % calculate the duration of every movement. 
+umdur = t0mu-t0um;              % calculate the duration of every unmovement. 
+
+nloop = length(umdur);     % m-um loop
+m2um = zeros(nloop,10*Fs);
+um2m = zeros(nloop,10*Fs);
+for m = 1:nloop
+   if mdur(m)>5 && umdur(m)>5
+       m2um(m,:) = segdata(x,t0um(m)-5,Fs,10);
+   end
+end
+for m = 1:nloop-1
+    if umdur(m)>5 && mdur(m+1)>5
+        um2m(m,:) = segdata(x,t0mu(m)-5,Fs,10);
+    end
+end
+m2um = m2um(any(m2um,2),any(m2um,1));   % remain nonzero lines.
+um2m = um2m(any(um2m,2),any(um2m,1));   % remain nonzero lines.
+% !well done, then use the auto prepared data to do the ana.
 
 %% statistic 1: ERP and bootstrapping
 % plot ERP for the continous 4 stages
-x = [mean(m_off) mean(um_on)]; % transform from move to unmove
-% x = [mean(um_off) mean(m_on)];
-t = (dt:dt:2);
-figure;plot(t,x,'LineWidth',2)
+x = m2um;
+t = (dt:dt:10);
+figure;
 hold on
-for m = 1:size(m_off,1)
-    plot(t,[m_off(m,:) um_on(m,:)],'r')
+for m = 1:size(x,1)
+    plot(t,x,'r')
 end
-% the result shows it is mess and seems no significance in the data
-%% plot shuffled x with black and gray
-x = xs; % define the data to be bootstrapping
-ntrials = size(x,1);
+plot(t,mean(x),'LineWidth',2,'color','k')
+plot([5 5],[-150 200],'LineWidth',1,'color','w');
+plot([0 10],[0 0],'LineWidth',1,'color','w')
+title('m2um')
+hold off
+
+x = um2m;
+t = (dt:dt:10);
+figure;
+hold on
+for m = 1:size(x,1)
+    plot(t,x,'r')
+end
+plot(t,mean(x),'LineWidth',2,'color','k')
+plot([5 5],[-150 200],'LineWidth',1,'color','w');
+plot([0 10],[0 0],'LineWidth',1,'color','w')
+title('um2m')
+hold off
+% the result of oringinal 10 trials shows a little mess and 
+% seems no significance in the m2um data, some significant change in um2m
+% data. Anyway, bootstrapping give a more convinced result with more repeat
+%% plot bootstrapping um2m with shuffled data
 dt = 0.001;
 t = (-5:dt:5-dt);
-ERP0 = zeros(3000,size(x,2));	%Create empty ERP variable.
-for k=1:3000						%For each resampling,
-    i=randsample(ntrials,ntrials,1);%... choose the trials,
-    EEG0 = x(i,:);				%... create resampled EEG,
-    ERP0(k,:) = mean(EEG0,1);		%... save resampled ERP.
-end
 
-sERP0=sort(ERP0);               %Sort each column of resampled ERP.
-ciL  =sERP0(0.025*size(ERP0,1),:);  %Determine lower CI.
-ciU  =sERP0(0.975*size(ERP0,1),:);  %Determine upper CI.
-
-mn = mean(x,1);             %Determine ERP for condition A,
+xs = shuffleFunc(um2m,1);                   % generate shuffled data
+[mn,ciL,ciU] = bootstrappingFunc(xs,3000);  % apply bootstrapping to shuffled data for 3000 times
 figure;
-plot(t,ciL,'color',[0.8 0.8 0.8])      %... and plot lower CI,
+plot(t,ciL,'color',[0.8 0.8 0.8])           %... and plot lower CI,
 hold on
-plot(t,ciU,'color',[0.8 0.8 0.8])            %... and upper CI.
+plot(t,ciU,'color',[0.8 0.8 0.8])           %... and upper CI.
 plot(t, mn, 'LineWidth', 3,'color', [0.5 0.5 0.5])    %... and plot it.
 
-% from the result, it seems that shuffled signal almost cover the original
-% signal, it makes sense that shuffled technique is not good for ERP, but
-% it maybe very useful for phase-amplitude analysis.
-
-%% bootstrapping for target data and shuffle
-x = um2m; % define the data to be bootstrapping
-ntrials = size(x,1);
-dt = 0.001;
-t = (-5:dt:5-dt);
-ERP0 = zeros(3000,size(x,2));	%Create empty ERP variable.
-for k=1:3000						%For each resampling,
-    i=randsample(ntrials,ntrials,1);%... choose the trials,
-    EEG0 = x(i,:);				%... create resampled EEG,
-    ERP0(k,:) = mean(EEG0,1);		%... save resampled ERP.
-end
-
-sERP0=sort(ERP0);               %Sort each column of resampled ERP.
-ciL  =sERP0(0.025*size(ERP0,1),:);  %Determine lower CI.
-ciU  =sERP0(0.975*size(ERP0,1),:);  %Determine upper CI.
-
-mn = mean(x,1);             %Determine ERP for condition A,
-% hold on                         %Freeze the current plot, 
+% bootstrapping for target data
+[mn,ciL,ciU] = bootstrappingFunc(um2m,3000);  % apply bootstrapping for 3000 times
 plot(t,ciL,'b')                     %... and plot lower CI,
 plot(t,ciU,'b')                     %... and upper CI.
 plot(t, mn, 'LineWidth', 3,'color','k')    %... and plot it.
@@ -292,173 +345,342 @@ plot(t, mn, 'LineWidth', 3,'color','k')    %... and plot it.
 ylabel('Voltage [\mu V]')       %Label the y-axis as voltage.
 xlabel('Time [s]')              %Label the x-axis as time.
 title('ERP of um2m with bootstrap confidence intervals and shuffled data')
-plot([0 0],[-80 80],'LineWidth',2,'color','w');
-plot([-5 5],[0 0],'LineWidth',2,'color','w')
+plot([0 0],[-80 80],'LineWidth',1,'color','w');
+plot([-5 5],[0 0],'LineWidth',1,'color','w')
+hold off
+
+%% plot bootstrappint m2um with shuffled data
+dt = 0.001;
+t = (-5:dt:5-dt);
+% prepare shuffled data
+xs = shuffleFunc(m2um,1);                   % generate shuffled data
+[mn,ciL,ciU] = bootstrappingFunc(xs,3000);  % apply bootstrapping to shuffled data for 3000 times
+figure;
+plot(t,ciL,'color',[0.8 0.8 0.8])           %... and plot lower CI,
+hold on
+plot(t,ciU,'color',[0.8 0.8 0.8])           %... and upper CI.
+plot(t, mn, 'LineWidth', 3,'color', [0.5 0.5 0.5])    %... and plot it.
+
+% bootstrapping for target data
+[mn,ciL,ciU] = bootstrappingFunc(m2um,3000);  % apply bootstrapping for 3000 times
+plot(t,ciL,'b')                     %... and plot lower CI,
+plot(t,ciU,'b')                     %... and upper CI.
+plot(t, mn, 'LineWidth', 3,'color','k')    %... and plot it.
+
+ylabel('Voltage [\mu V]')       %Label the y-axis as voltage.
+xlabel('Time [s]')              %Label the x-axis as time.
+title('ERP of m2um with bootstrap confidence intervals and shuffled data')
+plot([0 0],[-80 80],'LineWidth',1,'color','w');
+plot([-5 5],[0 0],'LineWidth',1,'color','w')
 hold off
 
 
 %% trial average spectrum
+[faxis,Sxxm]=trialAveSpectrum(m_on,0.001);
+figure
+plot(faxis, Sxxm)
+hold on
+[faxis,Sxxm]=trialAveSpectrum(m_off,0.001);
+plot(faxis, Sxxm)
 
-E1 = unmove;   
-K = size(E1,1);				%Define the number of trials.
-N = size(E1,2);				%Define the number of time indices.
-dt = 0.001;
-t = (dt:dt:5);
-T  = t(end);				%Define the duration of data.
+[faxis,Sxxm]=trialAveSpectrum(um_on,0.001);
+plot(faxis, Sxxm)
 
-Sxx = zeros(K,N);		%Create variable to store each spectrum.
-for k=1:K					%For each trial,
-    x = E1(k,:);			%... get the data,
-    xf  = fft(x-mean(x));	%... compute Fourier transform,
-    Sxx(k,:) = 2*dt^2/T *(xf.*conj(xf));%... compute spectrum.
-end
-Sxx = Sxx(:,1:N/2+1);		%Ignore negative frequencies.
-Sxx = mean(Sxx,1);			%Average spectra over trials.
-
-df = 1/max(T);				%Define frequency resolution,
-fNQ = 1/dt/2;				%... and Nyquist frequency.
-faxis = (0:df:fNQ);			%... to construct frequency axis.
-
-% figure
-plot(faxis, Sxx)
+[faxis,Sxxm]=trialAveSpectrum(um_off,0.001);
+plot(faxis, Sxxm)
 % plot(faxis, 10*log10(Sxx))	%Plot power in decibels vs frequency,
-xlim([0 100]);				%... in select frequency range,
+xlim([0 30]);				%... in select frequency range,
 ylim([0 400])				%... in select power range,
 xlabel('Frequency [Hz]')	%... with axes labelled.
 ylabel('Power [ mV^2/Hz]')
-%% plot in dB scale
-x = mean(m_off);
-t = (dt:dt:10);
-N = length(x);
-T = N*dt;
-xf = fft(x-mean(x));			%Compute Fourier transform of x.
-Sxx = 2*dt^2/T * (xf.*conj(xf));	%Compute power spectrum.
-Sxx = Sxx(1:length(x)/2+1);		%Ignore negative frequencies.
+legend('move on', 'move off', 'unmove on', 'unmove off');
+legend boxoff
+hold off
+%% plot Sxx in dB scale
+[faxis,Sxxm]=trialAveSpectrum(m_on,0.001); % calculate Sxx
+figure
+plot(faxis, 10*log10(Sxxm/max(Sxxm)))		%Plot power in decibels.
+hold on
 
-df = 1/max(T);					%Determine frequency resolution.
-fNQ = 1/ dt / 2;				%Determine Nyquist frequency.
-faxis = (0:df:fNQ);				%Construct frequency axis.
+[faxis,Sxxm]=trialAveSpectrum(m_off,0.001); % calculate Sxx
+plot(faxis, 10*log10(Sxxm/max(Sxxm)))		%Plot power in decibels.
 
-% figure
-plot(faxis, 10*log10(Sxx/max(Sxx)))		%Plot power in decibels.
-xlim([0 100])							%Select frequency range.
+[faxis,Sxxm]=trialAveSpectrum(um_on,0.001); % calculate Sxx
+plot(faxis, 10*log10(Sxxm/max(Sxxm)))		%Plot power in decibels.
+
+[faxis,Sxxm]=trialAveSpectrum(um_off,0.001); % calculate Sxx
+plot(faxis, 10*log10(Sxxm/max(Sxxm)))		%Plot power in decibels.
+
+xlim([0 30])							%Select frequency range.
 ylim([-60 0])							%Select decibel range.
 xlabel('Frequency [Hz]')				%Label axes.
 ylabel('Power [dB]')
+legend('move on', 'move off', 'unmove on', 'unmove off');
+legend boxoff
+hold off
 
-% semilogx(faxis, 10*log10(Sxx/max(Sxx)))	%Log-log scale
-% xlim([df 100])							%Select frequency range.
-% % ylim([-60 0])							%Select decibel range.
-% xlabel('Frequency [Hz]')				%Label axes.
-% ylabel('Power [dB]')
+%% plot Sxx in dB scale and log-log scale
+figure;
+[faxis,Sxxm]=trialAveSpectrum(m_on,0.001); % calculate Sxx
+semilogx(faxis, 10*log10(Sxxm/max(Sxxm)))	%Log-log scale
+hold on
 
-%% powerspectrogram
-x = m2um; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-x = mean(x);
-Fs = 1/dt;					%Define the sampling frequency.
-interval = round(Fs);		%Specify the interval size.
-overlap = round(Fs*0.95);	%Specify the overlap of intervals.
-nfft = round(Fs);			%Specify the FFT length.
+[faxis,Sxxm]=trialAveSpectrum(m_off,0.001); % calculate Sxx
+semilogx(faxis, 10*log10(Sxxm/max(Sxxm)))	%Log-log scale
 
-%Compute the spectrogram,
-[S,F,T,P] = spectrogram(x-mean(x),interval,overlap,nfft,Fs);
-figure
-% imagesc(T,F,10*log10(P))	%... and plot it,
-imagesc(T,F,P)
-colorbar					%... with a colorbar,
-axis xy						%... and origin in lower left, 
+[faxis,Sxxm]=trialAveSpectrum(um_on,0.001); % calculate Sxx
+semilogx(faxis, 10*log10(Sxxm/max(Sxxm)))	%Log-log scale
+
+[faxis,Sxxm]=trialAveSpectrum(um_off,0.001); % calculate Sxx
+semilogx(faxis, 10*log10(Sxxm/max(Sxxm)))	%Log-log scale
+
+xlim([df 100])							%Select frequency range.
+ylim([-60 0])							%Select decibel range.
+xlabel('Frequency [Hz]')				%Label axes.
+ylabel('Power [dB]')
+legend('move on', 'move off', 'unmove on', 'unmove off');
+legend boxoff
+hold off
+
+%% powerspectrogram for um2m
+spectrogramFunc(um2m,0.001)
+hold on
+plot([5 5],[0 100],'--','color','w','LineWidth',2)
+ylim([0 70])				%... set the frequency range,
+xlabel('Time [s]');			%... and label axes.
+ylabel('Frequency [Hz]')
+title('TST - unmove to move')
+colormapeditor
+hold off
+%% powerspectrogram for um2m
+% x = mean(m2um);                %Calculate ERP
+spectrogramFunc(um2m(1,:),0.001)
+hold on
+plot([5 5],[0 100],'--','color','w','LineWidth',2)
 ylim([0 70])				%... set the frequency range,
 xlabel('Time [s]');			%... and label axes.
 ylabel('Frequency [Hz]')
 title('TST - move to unmove')
 colormapeditor
-
+hold off
+% if I image a single line vector in um2m or m2um, i cannot see any
+% significant frequecy change.
 %% correlation and cohr
-% prepare the data for cohr, need to include 4Ch in move and unmove state
-x = dset_3;
-m2um = zeros(10,10*Fs);
-um2m = zeros(10,10*Fs);
-t0_m2um = [93 136 147 174 195 232 261 341 294 323]; % prepared by hand
-t0_um2m = [105 125 141 181 208 246 271 353 301 328]; % prepared by hand
-t0_m2um = sort(t0_m2um);
-t0_um2m = sort(t0_um2m);
+% prepare data for 1s as an epoch
+moveEpoch1 = data4epoch(dset_1,t0_m2um,1000,4,1);   % xepoch = data4epoch(x,t0,Fs,dur,sec),Ch1
+moveEpoch2 = data4epoch(dset_2,t0_m2um,1000,4,1);   % Ch2
+moveEpoch3 = data4epoch(dset_3,t0_m2um,1000,4,1);   % Ch3
+moveEpoch4 = data4epoch(dset_4,t0_m2um,1000,4,1);   % Ch4
 
-% try 50% move or unmove time point first
-t0_move = t0_m2um;  
-t0_unmove = t0_um2m;
-% hold on
-% for k = 1:length(t0_unmove)
-%     plot([t0_unmove(k) t0_unmove(k)],[-100 100],'r')
-% end
-
-%% prepare data for 1s as an epoch
-x = dset_4;     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-sec4epoch = 1;      % Define 1s for every epoch in the later corr&cohr ana.
-move = zeros(40,sec4epoch*Fs);       % we have 10 variable in t0, and every t0 has include 4s
-unmove = zeros(40,sec4epoch*Fs); 
-% the former description is because I pick up t0 by hand and every epoch
-% include 5s move and 5 sec unmove. Here, for guarantee, we pick 4s from
-% each epoch. So totally 40 windows.
-
-for m = 1:length(t0_move)
-    toseg = segdata(x,t0_move(m),Fs,4);    % extract move data from x
-    move(((m-1)*4+1):(m*4),:) = reshape(toseg,[1000,4])'; % reshape the data to 1s in a window
-    toseg = segdata(x,t0_unmove(m),Fs,4);  % extract unmove data from x
-    unmove(((m-1)*4+1):(m*4),:) = reshape(toseg,[1000,4])';
-end
-
-% % prepare shuffled x (x can be any stage, here m2um or um2m)
-% x = move; 
-% ns = 1;                   %define number of shuffle for each trial as 1, so we can generate a dataframe the same as original data
-% xs = zeros(ns*size(x,1),size(x,2));			%Vector to hold shuffled x results
-% for m = 1:size(x,1)
-%     for n = 1:ns				%For each surrogate,
-%         xs(n+ns*(m-1),:) = x(m,randperm(size(x,2)));	%Resample by y-index
-%     end
-% end
-move4 = move;       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-unmove4 = unmove;       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+unmoveEpoch1 = data4epoch(dset_1,t0_um2m,1000,4,1);   % prepare data epoch, Ch1
+unmoveEpoch2 = data4epoch(dset_2,t0_um2m,1000,4,1);   % prepare data epoch, Ch1
+unmoveEpoch3 = data4epoch(dset_3,t0_um2m,1000,4,1);   % prepare data epoch, Ch1
+unmoveEpoch4 = data4epoch(dset_4,t0_um2m,1000,4,1);   % prepare data epoch, Ch1
 
 %% compute the cohr between two electrodes.
+
+% E1 = move3;              %Define Electrode 1
+% E2 = move4;            %Define Electrode 2
+% K = size(E1,1);			%Define the number of trials.
+% N = size(E1,2);			%Define the number of indices per trial.
+% dt = t(2)-t(1);			%Define the sampling interval.
+% t = (dt:dt:1);          %Define the timeline according to epoch.
+% T  = t(end); 			%Define the duration of data.
+% 
+% Sxx = zeros(K,N);		%Create variables to save the spectra,
+% Syy = zeros(K,N);
+% Sxy = zeros(K,N);
+% for k=1:K				%... and compute spectra for each trial.
+%     x=E1(k,:)-mean(E1(k,:));
+%     y=E2(k,:)-mean(E2(k,:));
+%     Sxx(k,:) = 2*dt^2/T * (fft(x) .* conj(fft(x)));
+%     Syy(k,:) = 2*dt^2/T * (fft(y) .* conj(fft(y)));
+%     Sxy(k,:) = 2*dt^2/T * (fft(x) .* conj(fft(y)));
+% end
+% 
+% Sxx = Sxx(:,1:N/2+1);	%Ignore negative frequencies.
+% Syy = Syy(:,1:N/2+1);
+% Sxy = Sxy(:,1:N/2+1);
+% 
+% Sxx = mean(Sxx,1);		%Average the spectra across trials.
+% Syy = mean(Syy,1);
+% Sxy = mean(Sxy,1);		%... and compute the coherence.
+% cohr = abs(Sxy) ./ (sqrt(Sxx) .* sqrt(Syy));
+% 
+% df = 1/max(T);			%Determine the frequency resolution.
+% fNQ = 1/dt/2;			%Determine the Nyquist frequency,
+% faxis = (0:df:fNQ);		%... and construct frequency axis.
 % 1:APCR; 2:APCL; 3:dHCR; 4:S1L
-E1 = move3;              %Define Electrode 1
-E2 = move4;            %Define Electrode 2
-K = size(E1,1);			%Define the number of trials.
-N = size(E1,2);			%Define the number of indices per trial.
-dt = t(2)-t(1);			%Define the sampling interval.
-t = (dt:dt:1);          %Define the timeline according to epoch.
-T  = t(end); 			%Define the duration of data.
-
-Sxx = zeros(K,N);		%Create variables to save the spectra,
-Syy = zeros(K,N);
-Sxy = zeros(K,N);
-for k=1:K				%... and compute spectra for each trial.
-    x=E1(k,:)-mean(E1(k,:));
-    y=E2(k,:)-mean(E2(k,:));
-    Sxx(k,:) = 2*dt^2/T * (fft(x) .* conj(fft(x)));
-    Syy(k,:) = 2*dt^2/T * (fft(y) .* conj(fft(y)));
-    Sxy(k,:) = 2*dt^2/T * (fft(x) .* conj(fft(y)));
-end
-
-Sxx = Sxx(:,1:N/2+1);	%Ignore negative frequencies.
-Syy = Syy(:,1:N/2+1);
-Sxy = Sxy(:,1:N/2+1);
-
-Sxx = mean(Sxx,1);		%Average the spectra across trials.
-Syy = mean(Syy,1);
-Sxy = mean(Sxy,1);		%... and compute the coherence.
-cohr = abs(Sxy) ./ (sqrt(Sxx) .* sqrt(Syy));
-
-df = 1/max(T);			%Determine the frequency resolution.
-fNQ = 1/dt/2;			%Determine the Nyquist frequency,
-faxis = (0:df:fNQ);		%... and construct frequency axis.
-
+[faxis,cohr] = cohrFunc(moveEpoch1,moveEpoch2,1000);
 figure
+subplot(2,3,1)
 plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch1,unmoveEpoch2,1000);
+plot(faxis, cohr)
 xlim([0 50])			%... in chosen frequency range,
 ylim([0 1])
 xlabel('Frequency [Hz]')%... with axes labelled.
 ylabel('Coherence')
-title('Cohr dHCR-S1L TST move')
+title('TST Cohr APCR-APCL')
+legend('move','unmove')
+legend boxoff
+hold off
 
-%% step 
+[faxis,cohr] = cohrFunc(moveEpoch1,moveEpoch3,1000);
+subplot(2,3,2)
+plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch1,unmoveEpoch3,1000);
+plot(faxis, cohr)
+xlim([0 50])			%... in chosen frequency range,
+ylim([0 1])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('Coherence')
+title('TST Cohr APCR-dHCR')
+legend('move','unmove')
+legend boxoff
+hold off
+
+[faxis,cohr] = cohrFunc(moveEpoch1,moveEpoch4,1000);
+subplot(2,3,3)
+plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch1,unmoveEpoch4,1000);
+plot(faxis, cohr)
+xlim([0 50])			%... in chosen frequency range,
+ylim([0 1])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('Coherence')
+title('TST Cohr APCR-S1L')
+legend('move','unmove')
+legend boxoff
+hold off
+
+[faxis,cohr] = cohrFunc(moveEpoch2,moveEpoch3,1000);
+subplot(2,3,4)
+plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch2,unmoveEpoch3,1000);
+plot(faxis, cohr)
+xlim([0 50])			%... in chosen frequency range,
+ylim([0 1])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('Coherence')
+title('TST Cohr APCL-dHCR')
+legend('move','unmove')
+legend boxoff
+hold off
+
+[faxis,cohr] = cohrFunc(moveEpoch2,moveEpoch4,1000);
+subplot(2,3,5)
+plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch2,unmoveEpoch4,1000);
+plot(faxis, cohr)
+xlim([0 50])			%... in chosen frequency range,
+ylim([0 1])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('Coherence')
+title('TST Cohr APCL-S1L')
+legend('move','unmove')
+legend boxoff
+hold off
+
+[faxis,cohr] = cohrFunc(moveEpoch3,moveEpoch4,1000);
+subplot(2,3,6)
+plot(faxis, cohr);		%Plot coherence vs frequency,
+hold on
+[faxis,cohr] = cohrFunc(unmoveEpoch3,unmoveEpoch4,1000);
+plot(faxis, cohr)
+xlim([0 50])			%... in chosen frequency range,
+ylim([0 1])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('Coherence')
+title('TST Cohr dHCR-S1L')
+legend('move','unmove')
+legend boxoff
+hold off
+
+%% difference of cohr: move-unmove
+[~,cohrm] = cohrFunc(moveEpoch1,moveEpoch2,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch1,unmoveEpoch2,1000);
+figure
+subplot(2,3,1)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST APCR-APCL')
+hold off
+
+[~,cohrm] = cohrFunc(moveEpoch1,moveEpoch3,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch1,unmoveEpoch3,1000);
+subplot(2,3,2)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST APCR-dHCR')
+hold off
+
+[~,cohrm] = cohrFunc(moveEpoch1,moveEpoch4,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch1,unmoveEpoch4,1000);
+subplot(2,3,3)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST APCR-S1L')
+hold off
+
+[~,cohrm] = cohrFunc(moveEpoch2,moveEpoch3,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch2,unmoveEpoch3,1000);
+subplot(2,3,4)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST APCL-dHCR')
+hold off
+
+[~,cohrm] = cohrFunc(moveEpoch2,moveEpoch4,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch2,unmoveEpoch4,1000);
+subplot(2,3,5)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST APCL-S1L')
+hold off
+
+[~,cohrm] = cohrFunc(moveEpoch3,moveEpoch4,1000);
+[faxis,cohrum] = cohrFunc(unmoveEpoch3,unmoveEpoch4,1000);
+subplot(2,3,6)
+plot(faxis, cohrm-cohrum)
+hold on
+plot([0 100],[0 0],'--','color','k')
+xlim([0 100])			%... in chosen frequency range,
+% ylim([-0.5 0.5])
+xlabel('Frequency [Hz]')%... with axes labelled.
+ylabel('difference in LFP Coherence')
+title('TST dHCR-S1L')
+hold off
+% Should add sem shade around. Later do that.
+
+

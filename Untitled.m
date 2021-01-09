@@ -1,3 +1,13 @@
+%% how to creat a function which have optional input variables
+% here is an example, if no content input, it will return "hello Matlab",
+% if there is some content as an input content, the content will be filled
+
+function [] = speakFunc(name,content)
+    if ~exist('content','var')
+        content = 'hello MATLAB';
+    end
+    fprintf(1,'%s speak: %s\n',name,content);
+end
 %% practice cell and struct
 
 fileID = fopen("D:/Download/Chrome/student",'r','n','UTF-8');
