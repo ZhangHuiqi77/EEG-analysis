@@ -18,7 +18,7 @@ function [locgs,gs,gs_dur,gs_num,interval]=findGS(x, Fs, bs)
     % build up zero matrix to store variables  
     gs = zeros(100,10*Fs); % build gs structure that is sure enough to save every gs, here we use 100
     locgs = zeros(100,10*Fs); % build gs structure that is sure enough to save every gs location, here we use 100, the same as gs.
-    locspk = zeros(1000,100000); % an inter variable, build a matrix to save location of spikes, the matrix is big enough, here we use length(x)x length(x)
+    locspk = zeros(1000,100000); % an inter variable, build a matrix to save location of spikes, the matrix is big enough, here we use length(x)
     gs_dur = zeros(100,1);
     
     % condition 1

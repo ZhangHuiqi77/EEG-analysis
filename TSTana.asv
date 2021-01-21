@@ -1344,7 +1344,7 @@ set(gca,'xtick',[-100 -50 0 50 100])
 axis tight, box off, xlim([-101 100])
 xlabel('Lag [ms]')
 ylabel('Crosscorrelation')
-title([ch2,'-', ch1,' cross-corr theta'])
+title([ch4,'-', ch2,' cross-corr theta'])
 hold off
 
 subplot(3,5,7)
@@ -1366,10 +1366,6 @@ xlabel('lags [ms]')
 ylabel('probability')
 title('max lag distribution')
 
-
-
-
-
 % ch1-ch2 beta
 % x = moveEpoch1;             % define signal.
 % y = moveEpoch2;             % define signal.
@@ -1389,7 +1385,7 @@ set(gca,'xtick',[-100 -50 0 50 100])
 axis tight, box off, xlim([-101 100])
 xlabel('Lag [ms]')
 ylabel('Crosscorrelation')
-title([ch2,'-', ch1,' cross-corr beta'])
+title([ch4,'-', ch2,' cross-corr beta'])
 hold off
 
 subplot(3,5,8)
@@ -1412,9 +1408,6 @@ xlabel('lags [ms]')
 ylabel('probability')
 title('max lag distribution')
 
-
-
-
 % ch1-ch2 low gamma
 % x = moveEpoch1;             % define signal.
 % y = moveEpoch2;             % define signal.
@@ -1434,7 +1427,7 @@ set(gca,'xtick',[-100 -50 0 50 100])
 axis tight, box off, xlim([-101 100])
 xlabel('Lag [ms]')
 ylabel('Crosscorrelation')
-title([ch2,'-', ch1,' cross-corr low gamma'])
+title([ch4,'-', ch2,' cross-corr low gamma'])
 hold off
 
 subplot(3,5,9)
@@ -1456,9 +1449,6 @@ xlabel('lags [ms]')
 ylabel('probability')
 title('max lag distribution')
 
-
-
-
 % ch1-ch2 high gamma
 % x = moveEpoch1;             % define signal.
 % y = moveEpoch2;             % define signal.
@@ -1478,7 +1468,7 @@ set(gca,'xtick',[-100 -50 0 50 100])
 axis tight, box off, xlim([-101 100])
 xlabel('Lag [ms]')
 ylabel('Crosscorrelation')
-title([ch2,'-', ch1,' cross-corr high gamma'])
+title([ch4,'-', ch2,' cross-corr high gamma'])
 hold off
 
 subplot(3,5,10)

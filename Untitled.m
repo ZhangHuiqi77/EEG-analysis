@@ -1,3 +1,62 @@
+%% find extreme values
+x = dset_1;
+[y,i,xmedian,xsigma] = hampel(x,10000,20);
+n = 1:length(x);
+figure;
+plot(n,x)
+hold on
+plot(n,xmedian-3*xsigma,n,xmedian+3*xsigma)
+plot(find(i),x(i),'sk')
+hold off
+legend('Original signal','Lower limit','Upper limit','Outliers')
+figure;plot(n,y)        % this is the replaced data
+%% filter design test
+% FOR filter test
+x = segdata(dset_2,5060,1000,360);
+% dt = t(2)-t(1);				%Define the sampling interval.
+Fs = 1/dt;					%Define the sampling frequency.
+
+% Wn = [1,70]/fNQ;		    %...set the passband, 1-70
+% n  = 100;					%...and filter order,
+
+
+d1 = designfilt('bandpassiir','FilterOrder',2, ...
+    'HalfPowerFrequency1',1,'HalfPowerFrequency2',70, ...
+    'SampleRate',1000,'DesignMethod','butter');
+% fvtool(d1)
+xd1 = filtfilt(d1,x);
+
+% d2 = designfilt('bandpassfir','FilterOrder',2, ...
+%          'CutoffFrequency1',1,'CutoffFrequency2',70, ...
+%          'SampleRate',1000,'DesignMethod','butter');
+
+d2 = designfilt('bandpassfir', 'FilterOrder', 2, 'CutoffFrequency1', 1, 'CutoffFrequency2', 70, 'SampleRate', 1000, 'DesignMethod', 'window');
+
+% fvtool(d2)
+xd2 = filtfilt(d2,x);
+
+% d3 = designfilt('highpassfir','StopbandFrequency',0.25, ...
+%          'PassbandFrequency',0.35,'PassbandRipple',0.5, ...
+%          'StopbandAttenuation',65,'DesignMethod','kaiserwin');
+
+figure;
+subplot(3,1,1)
+plot(x)
+ylim([-600 200])
+
+subplot(3,1,2)
+plot(xd1)
+ylim([-600 200])
+
+subplot(3,1,3)
+plot(xd2)
+ylim([-600 200])
+
+% compare the filter effect of iir and fir filter, I think iir is the most
+% effective to remove the low frequency drift and ord = 2 is enough. But it
+% will generate some big waves around 5000 data point, I think it is OK
+% because all group will have that. 
+
 %% how to creat a function which have optional input variables
 % here is an example, if no content input, it will return "hello Matlab",
 % if there is some content as an input content, the content will be filled
