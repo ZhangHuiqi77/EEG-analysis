@@ -3,7 +3,7 @@ function xepoch = data4epoch(x,t0,Fs,dur,sec)
 % 02/01/2021
 % called function: segdata
 % This function is for preparing data that is consistent of many epoches
-% xepoch = data4epoch(x,t0,Fs,dur,sec)
+% USAGE: xepoch = data4epoch(x,t0,Fs,dur,sec)
 % Input:
 %   x: data, should be a line vector
 %   t0: start time to segment data, should be a vector

@@ -30,7 +30,6 @@ function [lags,crosscorr,max_crosscorr_lag] = amp_crosscorr_trials(x,y,lags_N,Fs
         [lags(k,:),crosscorr(k,:),max_crosscorr_lag(k)] = amp_crosscorr(x(k,:),y(k,:),Fs,Freq1,Freq2);
     end
 
-    figure;
     [max_crosscorr_lag,ind] = sort(max_crosscorr_lag);
     crosscorr = crosscorr(ind,:);
 end

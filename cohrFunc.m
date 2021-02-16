@@ -4,6 +4,7 @@ function [faxis,cohr] = cohrFunc(E1,E2,Fs)
 % This function is for computing multi-trial average coherence between two electrodes signals.
 % Also works for single trial coherence.
 
+% USAGE: [faxis,cohr] = cohrFunc(E1,E2,Fs)
 % Input:
 %   E1: The first electrode signal. Each row is a trial.
 %   E2: The second electrode signal. Shoud be the same size with E1.
