@@ -1,6 +1,6 @@
 % find epileptic spikes
 %read data- edf
-[head, dset] = edfread('20201103_GL8201_TST_box2_APCR1_APCL2_dHCR3_S1L4.edf');
+[head, dset] = edfread('20201204_GL8213_PTZsc80_3rdHS_APCR1_APCL2_dHCR3_S1L4.edf');
 dset_1 = touv(dset(1,:)); 
 dset_2 = touv(dset(2,:)); 
 dset_3 = touv(dset(3,:)); 
@@ -15,7 +15,7 @@ dt = 1/Fs; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 x = dset_3; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 t = (dt:dt:(size(x,2))*dt);
 
-figure
+figure('color','w')
 % hold on
 plot(t,x,'k')
 % plot(t,dset_2-1000,'k')
@@ -24,7 +24,7 @@ plot(t,x,'k')
 % ylim([-10000,1000])
 title('raw EEG-APCR') %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% plot all 4 channels
+%% plot all 4 channels
 xlimit = [1500 1540]; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ylimit = [-2000 2000]; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure
